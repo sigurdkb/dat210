@@ -1,0 +1,54 @@
+# Install IIS
+—
+# Download website
+#Invoke-WebRequest -Uri https://raw.githubusercontent.com/sigurdkb/dat210/master/index.html -OutFile C:\inetpub\wwwroot\index.html
+#Invoke-WebRequest -Uri https://raw.githubusercontent.com/sigurdkb/dat210/master/welcome.jpg -OutFile C:\inetpub\wwwroot\welcome.jpg
+
+Start-BitsTransfer -Source https://raw.githubusercontent.com/sigurdkb/dat210/master/index.html -Destination C:\inetpub\wwwroot\index.html
+Start-BitsTransfer -Source https://raw.githubusercontent.com/sigurdkb/dat210/master/welcome.jpg -Destination C:\inetpub\wwwroot\welcome.jpg
+
+# Updated DSC module
+Install-Module -Name xPSDesiredStateConfiguration
+
+# Configure Desired State Configuration
+. .\Config-Website.ps1
+Config-Website
+Start-DscConfiguration -Path .\Config-Website
+
+
+# Configure Local Configuration Manager
+. .\LCMConfig-Website.ps1
+LCMConfig-Website
+Set-DscLocalConfigurationManager -Path .\LCMConfig-Website
+
+# Debug
+Get-DscLocalConfigurationManager
+Get-DscConfigurationStatus -All
+Get-DscConfiguration
+Get-WinEvent -LogName "Microsoft-Windows-Dsc/Operational"
+
+# Configure Microsoft Update
+Install-Module PSWindowsUpdate
+Get-Command –module PSWindowsUpdate
+
+# Add the Microsoft Update Service (not just the Windows Update Service)
+Add-WUServiceManager -ServiceID 7971f918-a847-4430-9279-4a52d1efe18d
+
+# Download and install avaliable updates
+Get-WUInstall –MicrosoftUpdate –AcceptAll –AutoReboot
+
+
+# Create 3 vhdxs each 100GB
+1..3 | foreach { new-vhd -Path "C:\Disks\VDisk0$($_).vhdx" -SizeBytes 100GB -Dynamic }
+
+# Mount all vhdxs in folder
+Get-ChildItem | Get-VHD | Mount-VHD
+
+# List available physical disks
+Get-PhysicalDisk -CanPool $True
+
+# Create Storage Pool
+New-StoragePool -FriendlyName "VHDX Storage Pool" -StorageSubSystemFriendlyName "Windows Storage*" -PhysicalDisks (Get-PhysicalDisk -CanPool $True)
+
+# Create Volume
+New-Volume -FriendlyName "VHDX Disk" -FileSystem NTFS -ResiliencySettingName Parity -ProvisioningType Thin -Size 500GB -AccessPath "R:" -StoragePoolFriendlyName "VHDX*"
